@@ -7,7 +7,7 @@ import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <BrowserRouter basename="/hk-mahjong-web/">
+    <BrowserRouter basename="/hk-mahjong-web">
       <App />
     </BrowserRouter>
   </React.StrictMode>,
