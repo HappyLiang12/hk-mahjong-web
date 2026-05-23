@@ -1,6 +1,9 @@
 // Core engine barrel exports
 export { createTileSet, createTileSetWithOptions, shuffleTiles, tileName, isFlowerTile } from './tiles';
 export { initGame, sortHand, revealFlowers } from './game';
+export type { InitGameOptions, InitGameHandTile, InitGameMeldSpec } from './game';
+export { getPracticeHand, getPracticeAiMelds, validatePracticeHand, validateAiMelds } from './practice-hands';
+export type { PracticeHandTile, PracticeHandSpec, PracticeMeldSpec, PracticeScenarioId } from './practice-hands';
 export {
   drawTile, discardTile, getLegalClaims, resolveClaims, executeClaim,
   advanceTurn, isWallExhausted, declareConcealedKong, declarePromotedKong,

@@ -6,10 +6,16 @@ import {
   executeClaim, advanceTurn, checkWin, canWinWithTile,
   calculateScore, createRoundState, advanceRound,
 } from '../engine';
+import { requestHint, createHintState } from '../engine/hint-system';
+import type { HintResult, HintState } from '../engine/hint-system';
+import { getPracticeHand, getPracticeAiMelds } from '../engine/practice-hands';
+import type { PracticeScenarioId, PracticeHandSpec } from '../engine/practice-hands';
+import type { InitGameOptions } from '../engine/game';
 import type { RoundState, WinType } from '../engine';
 
 export type AiDifficulty = 'easy' | 'normal' | 'hard';
 export type GameSpeed = 'slow' | 'normal' | 'fast';
+export type GameMode = 'standard' | 'practice';
 
 export const SPEED_CONFIG: Record<GameSpeed, { aiThinkTime: number; animationMultiplier: number }> = {
   slow: { aiThinkTime: 2000, animationMultiplier: 1.5 },
@@ -56,6 +62,23 @@ export interface GameStoreState {
   aiDelay: number;
   flowerTiles: boolean;
 
+  // P1: Practice mode initialization
+  gameMode: GameMode;
+  allowUndo: boolean;
+  showHints: boolean;
+
+  // P2: WebGL recovery
+  webglLost: boolean;
+
+  // P4: Hint system
+  hintState: HintState | null;
+  lastHintResult: HintResult | null;
+  highlightedHintTileId: number | null;
+  hintToastText: string | null;
+
+  // Practice hands
+  practiceScenario: PracticeScenarioId | null;
+
   newGame: () => void;
   selectTile: (tileId: number) => void;
   confirmDiscard: () => void;
@@ -67,6 +90,9 @@ export interface GameStoreState {
   setGameSpeed: (speed: GameSpeed) => void;
   setAiDifficulty: (difficulty: AiDifficulty) => void;
   setFlowerTiles: (enabled: boolean) => void;
+  setGameMode: (mode: GameMode) => void;
+  setPracticeScenario: (scenario: PracticeScenarioId | null) => void;
+  requestHintAction: () => void;
 }
 
 // ── ReplayRecorder factory ──
@@ -351,9 +377,30 @@ function processClaimPhaseFromAi(curState: GameStoreState, set: SetFn, get: GetF
   return 'continue';
 }
 
+// ── AI recursion depth guard (P1) ──
+
+let aiRecursionDepth = 0;
+const AI_MAX_RECURSION_DEPTH = 50;
+
 function processAiTurnSync(state: GameStoreState, set: SetFn, get: GetFn): void {
+  aiRecursionDepth++;
+  try {
+    _processAiTurnSync(state, set, get);
+  } finally {
+    aiRecursionDepth--;
+  }
+}
+
+function _processAiTurnSync(state: GameStoreState, set: SetFn, get: GetFn): void {
   const { game, aiDelay } = state;
   if (!game) return;
+
+  // P1: Recursion depth safety guard
+  if (aiRecursionDepth > AI_MAX_RECURSION_DEPTH) {
+    console.error('processAiTurnSync: recursion depth limit reached (', aiRecursionDepth, ')');
+    endRound(get, set, null, false);
+    return;
+  }
 
   const MAX_ITERATIONS = 200;
   let safetyCounter = 0;
@@ -462,9 +509,56 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
   aiDelay: SPEED_CONFIG.normal.aiThinkTime,
   flowerTiles: false,
 
+  // P1: Practice mode fields
+  gameMode: 'standard',
+  allowUndo: false,
+  showHints: false,
+
+  // P2: WebGL recovery
+  webglLost: false,
+
+  // P4: Hint system
+  hintState: null,
+  lastHintResult: null,
+  highlightedHintTileId: null,
+  hintToastText: null,
+
+  // Practice hands
+  practiceScenario: null,
+
   newGame: () => {
     const st = get();
-    const game = initGame(0, 0, { flowers: st.flowerTiles });
+    const isPractice = st.gameMode === 'practice';
+
+    // P1+P5: explicit assignments for practice flags (no leaks)
+    const allowUndo = isPractice;
+    const showHints = isPractice;
+    const aiDifficulty: AiDifficulty = isPractice ? 'easy' : st.aiDifficulty;
+
+    // Practice hands: build InitGameOptions when scenario has curated hands
+    const scenario = isPractice ? st.practiceScenario : null;
+    let initOptions: InitGameOptions = { flowers: st.flowerTiles };
+
+    if (scenario) {
+      const scenarioHand = getPracticeHand(scenario);
+      if (scenarioHand) {
+        // Build player hand (13 + 1 draw) → dealer gets 14
+        const playerTiles = [...scenarioHand.hand, scenarioHand.draw];
+        const hands: (typeof playerTiles | null)[] = [playerTiles, null, null, null];
+        initOptions.hands = hands;
+
+        // Get AI melds from the scenario
+        const aiMelds = getPracticeAiMelds(scenario);
+        if (aiMelds.some(m => m !== null)) {
+          initOptions.melds = [...aiMelds]; // copy: [human, ai1, ai2, ai3]
+        }
+      }
+    }
+
+    const game = initGame(0, 0, initOptions);
+
+    // P1+P5: reset gameMode to standard after applying (prevents sticky practice state)
+    // But keep allowUndo/showHints/aiDifficulty as set above for the current game
 
     const recorder = createFullReplayRecorder();
     recorder.setInitialState({
@@ -485,12 +579,30 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       isDraw: false,
       isSelfDrawn: false,
       replayRecorder: recorder,
+      // P1+P5: explicit practice flag assignments
+      allowUndo,
+      showHints,
+      aiDifficulty,
+      gameMode: 'standard',
+      // P2: reset WebGL state
+      webglLost: false,
+      // P4: init hint state for practice mode
+      hintState: showHints ? createHintState('practice', false) : null,
+      lastHintResult: null,
+      highlightedHintTileId: null,
+      hintToastText: null,
     });
   },
 
   selectTile: (tileId: number) => {
-    const { game, selectedTileId } = get();
+    const { game, selectedTileId, hintToastText } = get();
     if (!game || game.currentTurn !== 0 || game.phase !== 'discard') return;
+
+    // P4: clear hint highlight when user clicks any tile
+    if (hintToastText || get().highlightedHintTileId !== null) {
+      set({ highlightedHintTileId: null, hintToastText: null });
+    }
+
     if (selectedTileId === tileId) {
       get().confirmDiscard();
     } else {
@@ -513,7 +625,14 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       tile: { suit: tile.suit, rank: tile.rank },
     });
 
-    set({ game: { ...game }, phase: game.phase, selectedTileId: null });
+    // P4: clear hint state on discard
+    set({
+      game: { ...game },
+      phase: game.phase,
+      selectedTileId: null,
+      highlightedHintTileId: null,
+      hintToastText: null,
+    });
 
     const state = get();
     processClaimPhase(state, set, get);
@@ -608,4 +727,48 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
   setAiDifficulty: (difficulty: AiDifficulty) => set({ aiDifficulty: difficulty }),
 
   setFlowerTiles: (enabled: boolean) => set({ flowerTiles: enabled }),
+
+  // P1+P5: setGameMode resets practice-only flags
+  setGameMode: (mode: GameMode) => {
+    const isPractice = mode === 'practice';
+    set({
+      gameMode: mode,
+      allowUndo: isPractice,
+      showHints: isPractice,
+    });
+  },
+
+  // Practice hands: set scenario
+  setPracticeScenario: (scenario: PracticeScenarioId | null) => set({ practiceScenario: scenario }),
+
+  // P4: Request hint
+  requestHintAction: () => {
+    const state = get();
+    const { game, hintState } = state;
+    if (!game || !hintState) return;
+    if (game.currentTurn !== 0 || game.phase !== 'discard') return;
+
+    const player = game.players[0];
+    const discards = game.players.flatMap(p => p.discards);
+    const melds = game.players.flatMap(p => p.melds.map(m => m.tiles).flat());
+
+    const hintResult = requestHint(
+      hintState,
+      player.hand,
+      discards,
+      melds,
+      [],
+    );
+
+    if (!hintResult) return;
+
+    const suggestedTileId = hintResult.result.suggestion.tile.id;
+
+    set({
+      lastHintResult: hintResult.result,
+      highlightedHintTileId: suggestedTileId,
+      hintToastText: hintResult.result.reasonText,
+      hintState: hintResult.newState,
+    });
+  },
 }));

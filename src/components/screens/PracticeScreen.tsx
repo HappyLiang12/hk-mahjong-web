@@ -2,45 +2,47 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Button from '@/components/shared/Button';
 import { useState } from 'react';
+import { useGameStore } from '@/store/gameStore';
+import type { PracticeScenarioId } from '@/engine';
 
 const PRACTICE_SCENARIOS = [
   {
-    id: 'standard-hand',
+    id: 'standard-hand' as PracticeScenarioId,
     name: '標準手牌',
     description: '練習基本牌型組合',
     icon: '🀄',
     handDescription: '隨機 13 張牌，練習棄牌策略',
   },
   {
-    id: 'one-away',
+    id: 'one-away' as PracticeScenarioId,
     name: '聽牌練習',
     description: '差一張就食糊的牌型',
     icon: '🎯',
     handDescription: '已經聽牌 (1-shanten)，練習判斷',
   },
   {
-    id: 'mixed-suit',
+    id: 'mixed-suit' as PracticeScenarioId,
     name: '混一色練習',
     description: '練習混一色牌型',
     icon: '🎨',
     handDescription: '已有混合花色，目標混一色',
   },
   {
-    id: 'all-pong',
+    id: 'all-pong' as PracticeScenarioId,
     name: '對對糊練習',
     description: '練習對對糊牌型',
     icon: '🔨',
     handDescription: '多對子手牌，目標對對糊',
   },
   {
-    id: 'defense',
+    id: 'defense' as PracticeScenarioId,
     name: '防守練習',
     description: '練習防守策略',
     icon: '🛡️',
     handDescription: '落後時的打法，避免出銃',
   },
   {
-    id: 'fast-game',
+    id: 'fast-game' as PracticeScenarioId,
     name: '快速決策',
     description: '限時遊戲，練習快速判斷',
     icon: '⚡',
@@ -50,7 +52,16 @@ const PRACTICE_SCENARIOS = [
 
 export default function PracticeScreen() {
   const navigate = useNavigate();
-  const [selectedScenario, setSelectedScenario] = useState<string | null>(null);
+  const [selectedScenario, setSelectedScenario] = useState<PracticeScenarioId | null>(null);
+
+  const handleStart = () => {
+    if (!selectedScenario) return;
+    // P1: Set game mode to practice
+    useGameStore.getState().setGameMode('practice');
+    // Practice hands: Set scenario for curated hand
+    useGameStore.getState().setPracticeScenario(selectedScenario);
+    navigate('/game');
+  };
 
   return (
     <div className="flex flex-col min-h-screen p-4 max-w-lg mx-auto">
@@ -124,7 +135,7 @@ export default function PracticeScreen() {
         className="mt-auto pb-8"
       >
         <button
-          onClick={() => selectedScenario && navigate('/game')}
+          onClick={handleStart}
           disabled={!selectedScenario}
           className="w-full py-4 bg-teal-600 hover:bg-teal-500 disabled:bg-teal-800 disabled:opacity-50 text-white text-lg font-bold rounded-xl shadow-lg transition-all"
         >

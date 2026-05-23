@@ -195,7 +195,10 @@ export function executeClaim(state: GameState, claim: ClaimIntent): boolean {
  * Advance to next player's turn when no claims are made.
  */
 export function advanceTurn(state: GameState): void {
-  if (state.phase !== 'claim') return;
+  if (state.phase !== 'claim') {
+    console.warn('advanceTurn: called when phase is not claim (current phase:', state.phase, ')');
+    return;
+  }
 
   state.lastDiscard = null;
   state.lastDiscardBy = null;
