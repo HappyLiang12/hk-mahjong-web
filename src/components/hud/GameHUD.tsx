@@ -159,6 +159,7 @@ export default function GameHUD({
             onHint={onHint}
             hintsRemaining={hintsRemaining}
             disabled={inputDisabled}
+            phase={phase}
           />
         )}
       </div>
