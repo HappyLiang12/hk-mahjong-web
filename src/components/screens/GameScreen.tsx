@@ -41,6 +41,11 @@ export default function GameScreen() {
   const undoManagerRef = useRef<UndoManager>(createUndoManager(10));
   const [canUndo, setCanUndo] = useState(false);
 
+  // P6: debug logging for undo visibility
+  useEffect(() => {
+    console.debug('[Undo] GameScreen render', { allowUndo, canUndo, hasUndoHandler: !!handleUndo });
+  }, [allowUndo, canUndo]);
+
   // ── Auto-start game on mount ──
   useEffect(() => {
     if (!game) {
@@ -85,6 +90,7 @@ export default function GameScreen() {
     const st = useGameStore.getState();
     if (st.game && st.allowUndo) {
       undoManagerRef.current.saveState(st.game);
+      console.debug('[Undo] saveState before discard', { historyLength: undoManagerRef.current.length });
       setCanUndo(undoManagerRef.current.canUndo());
     }
     useGameStore.getState().confirmDiscard();
@@ -103,6 +109,7 @@ export default function GameScreen() {
     const st = useGameStore.getState();
     if (st.game && st.allowUndo) {
       undoManagerRef.current.saveState(st.game);
+      console.debug('[Undo] saveState before claim', { historyLength: undoManagerRef.current.length });
       setCanUndo(undoManagerRef.current.canUndo());
     }
     useGameStore.getState().claimAction(type);

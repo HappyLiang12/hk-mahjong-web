@@ -557,6 +557,11 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
 
     const game = initGame(0, 0, initOptions);
 
+    // P6: verify practice mode initialization
+    if (isPractice) {
+      console.debug('[Store] newGame in practice mode', { allowUndo, showHints, aiDifficulty, scenario: st.practiceScenario });
+    }
+
     // P1+P5: reset gameMode to standard after applying (prevents sticky practice state)
     // But keep allowUndo/showHints/aiDifficulty as set above for the current game
 

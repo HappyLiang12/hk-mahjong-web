@@ -20,7 +20,7 @@ export default function QuickActions({
         <button
           onClick={onUndo}
           disabled={!canUndo}
-          title="Undo"
+          title={canUndo ? '撤銷 (Undo)' : '無可撤銷的操作'}
           className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed text-white text-xs font-bold transition-all"
         >
           ↩
