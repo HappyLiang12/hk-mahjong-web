@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 import Button from '@/components/shared/Button';
+import { useGameStore } from '@/store/gameStore';
 
 const GAME_MODES = [
   {
@@ -142,7 +143,7 @@ export default function LobbyScreen() {
         <Button
           variant="primary"
           size="lg"
-          onClick={() => navigate('/game')}
+          onClick={() => { useGameStore.getState().setGameMode('standard'); navigate('/game'); }}
           className="w-full bg-green-700 hover:bg-green-600 text-xl font-bold"
           leftIcon={<span>🀄</span>}
         >
