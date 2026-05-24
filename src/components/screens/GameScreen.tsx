@@ -47,10 +47,9 @@ export default function GameScreen() {
   }, [allowUndo, canUndo]);
 
   // ── Auto-start game on mount ──
+  // BUG-1: Always call newGame() unconditionally to clear stale practice mode state
   useEffect(() => {
-    if (!game) {
-      useGameStore.getState().newGame();
-    }
+    useGameStore.getState().newGame();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Derive TableSceneState from gameStore ──
