@@ -433,7 +433,7 @@ function _processAiTurnSync(state: GameStoreState, set: SetFn, get: GetFn): void
     return;
   }
 
-  while (game.currentTurn !== 0 && game.phase !== 'end' && game.phase !== 'claim') {
+  while (get().game!.currentTurn !== 0 && get().game!.phase !== 'end' && get().game!.phase !== 'claim') {
     if (++safetyCounter > MAX_ITERATIONS) {
       console.error('processAiTurnSync: safety limit reached');
       endRound(get, set, null, false);
@@ -474,10 +474,10 @@ function _processAiTurnSync(state: GameStoreState, set: SetFn, get: GetFn): void
     }
   }
 
-  set({ game: { ...game }, phase: game.phase, currentTurn: game.currentTurn });
+  set({ game: { ...get().game! }, phase: get().game!.phase, currentTurn: get().game!.currentTurn });
 
   // If player's draw phase
-  if (game.currentTurn === 0 && game.phase === 'draw') {
+  if (get().game!.currentTurn === 0 && get().game!.phase === 'draw') {
     const drawn = drawTile(game);
     if (!drawn) {
       endRound(get, set, null, false);
@@ -486,14 +486,14 @@ function _processAiTurnSync(state: GameStoreState, set: SetFn, get: GetFn): void
     const p = game.players[0];
     if (checkWin(p)) {
       set({
-        game: { ...game },
-        phase: game.phase,
-        currentTurn: game.currentTurn,
+        game: { ...get().game! },
+        phase: get().game!.phase,
+        currentTurn: get().game!.currentTurn,
         claimOptions: [{ type: 'win' }, { type: 'pass' as any }],
       });
       return;
     }
-    set({ game: { ...game }, phase: game.phase, currentTurn: game.currentTurn });
+    set({ game: { ...get().game! }, phase: get().game!.phase, currentTurn: get().game!.currentTurn });
   }
 }
 
