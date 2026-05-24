@@ -27,6 +27,56 @@ export default function GameScreen() {
 
   // P2: WebGL recovery
   const webglLost = useGameStore((s) => s.webglLost);
+  const [canvasKey, setCanvasKey] = useState(0);
+  const [recoveryFailed, setRecoveryFailed] = useState(false);
+  const recoveryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const domElementRef = useRef<HTMLCanvasElement | null>(null);
+  const onContextLostRef = useRef<((e: Event) => void) | null>(null);
+  const onContextRestoredRef = useRef<(() => void) | null>(null);
+
+  // Stable WebGL event handlers
+  useEffect(() => {
+    onContextLostRef.current = (e: Event) => {
+      e.preventDefault();
+      useGameStore.setState({ webglLost: true });
+      setRecoveryFailed(false);
+
+      recoveryTimeoutRef.current = setTimeout(() => {
+        setRecoveryFailed(true);
+      }, 5000);
+
+      setTimeout(() => {
+        setCanvasKey((k) => k + 1);
+      }, 100);
+    };
+
+    onContextRestoredRef.current = () => {
+      useGameStore.setState({ webglLost: false });
+      setRecoveryFailed(false);
+      if (recoveryTimeoutRef.current) {
+        clearTimeout(recoveryTimeoutRef.current);
+        recoveryTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  // Cleanup event listeners and timers on unmount
+  useEffect(() => {
+    return () => {
+      const el = domElementRef.current;
+      if (el) {
+        if (onContextLostRef.current) {
+          el.removeEventListener('webglcontextlost', onContextLostRef.current);
+        }
+        if (onContextRestoredRef.current) {
+          el.removeEventListener('webglcontextrestored', onContextRestoredRef.current);
+        }
+      }
+      if (recoveryTimeoutRef.current) {
+        clearTimeout(recoveryTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // P4: Hint fields
   const highlightedHintTileId = useGameStore((s) => s.highlightedHintTileId);
@@ -159,6 +209,7 @@ export default function GameScreen() {
     <div className="relative w-full h-screen overflow-hidden">
       {/* 3D Canvas */}
       <Canvas
+        key={canvasKey}
         shadows
         gl={{
           antialias: true,
@@ -168,14 +219,22 @@ export default function GameScreen() {
         }}
         className="w-full h-full"
         onCreated={({ gl }) => {
-          // P2: WebGL context lost/recovery handlers
-          gl.domElement.addEventListener('webglcontextlost', (event) => {
-            event.preventDefault();
-            useGameStore.setState({ webglLost: true });
-          });
-          gl.domElement.addEventListener('webglcontextrestored', () => {
-            useGameStore.setState({ webglLost: false });
-          });
+          domElementRef.current = gl.domElement as HTMLCanvasElement;
+
+          // Fresh canvas — clear any pending recovery state
+          if (recoveryTimeoutRef.current) {
+            clearTimeout(recoveryTimeoutRef.current);
+            recoveryTimeoutRef.current = null;
+          }
+          setRecoveryFailed(false);
+          useGameStore.setState({ webglLost: false });
+
+          if (onContextLostRef.current) {
+            gl.domElement.addEventListener('webglcontextlost', onContextLostRef.current);
+          }
+          if (onContextRestoredRef.current) {
+            gl.domElement.addEventListener('webglcontextrestored', onContextRestoredRef.current);
+          }
         }}
       >
         <TableScene
@@ -186,12 +245,21 @@ export default function GameScreen() {
         />
       </Canvas>
 
-      {/* P2: WebGL recovery banner */}
+      {/* P2: WebGL recovery overlay */}
       {webglLost && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-amber-900/70">
           <div className="text-amber-200 text-center p-6 rounded-xl bg-black/50">
             <div className="text-2xl font-bold mb-2">⚠️ 圖像引擎已斷線</div>
-            <div className="text-sm">正在恢復中…</div>
+            {recoveryFailed ? (
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold transition-colors"
+              >
+                重新載入
+              </button>
+            ) : (
+              <div className="text-sm">正在恢復中…</div>
+            )}
           </div>
         </div>
       )}
