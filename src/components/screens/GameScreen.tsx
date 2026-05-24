@@ -170,6 +170,33 @@ export default function GameScreen() {
 
   const handleBack = useCallback(() => navigate('/'), [navigate]);
 
+  // Timeout handler: auto-act when the 30s turn timer expires
+  const handleTimeout = useCallback(() => {
+    const st = useGameStore.getState();
+    if (st.phase === 'draw') {
+      if (st.game && st.allowUndo) {
+        undoManagerRef.current.saveState(st.game);
+        console.debug('[Timeout] saveState before auto-draw', { historyLength: undoManagerRef.current.length });
+        setCanUndo(undoManagerRef.current.canUndo());
+      }
+      console.debug('[Timeout] auto-drawing in draw phase');
+      useGameStore.getState().runAITurn();
+    } else if (st.phase === 'discard') {
+      if (st.selectedTileId === null && st.game) {
+        const hand = st.game.players[0].hand;
+        const lastTileId = hand[hand.length - 1].id;
+        useGameStore.setState({ selectedTileId: lastTileId });
+      }
+      if (st.game && st.allowUndo) {
+        undoManagerRef.current.saveState(st.game);
+        console.debug('[Timeout] saveState before auto-discard', { historyLength: undoManagerRef.current.length });
+        setCanUndo(undoManagerRef.current.canUndo());
+      }
+      console.debug('[Timeout] auto-discarding in discard phase');
+      useGameStore.getState().confirmDiscard();
+    }
+  }, [allowUndo]);
+
   // P3: Undo handler
   const handleUndo = useCallback(() => {
     const prev = undoManagerRef.current.undo();
@@ -294,7 +321,7 @@ export default function GameScreen() {
         inputDisabled={false}
         turnTimeSeconds={30}
         timerRunning={isHumanTurn && (phase === 'draw' || phase === 'discard')}
-        onTimeout={() => {}}
+        onTimeout={handleTimeout}
         onSettings={() => navigate('/settings')}
         canUndo={allowUndo && canUndo}
         onUndo={allowUndo ? handleUndo : undefined}
