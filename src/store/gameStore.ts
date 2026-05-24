@@ -414,12 +414,12 @@ function _processAiTurnSync(state: GameStoreState, set: SetFn, get: GetFn): void
 
   // If player's draw phase, draw for them
   if (game.currentTurn === 0 && game.phase === 'draw') {
-    const drawn = drawTile(game);
+    const drawn = drawTile(get().game!);
     if (!drawn) {
       endRound(get, set, null, false);
       return;
     }
-    const p = game.players[0];
+    const p = get().game!.players[0];
     if (checkWin(p)) {
       set({
         game: { ...game },
@@ -443,29 +443,29 @@ function _processAiTurnSync(state: GameStoreState, set: SetFn, get: GetFn): void
     const pid = get().game!.currentTurn;
 
     if (get().game!.phase === 'draw') {
-      const drawn = drawTile(game);
+      const drawn = drawTile(get().game!);
       if (!drawn) {
         endRound(get, set, null, false);
         return;
       }
-      const p = game.players[pid];
+      const p = get().game!.players[pid];
       if (checkWin(p)) {
-        game.phase = 'end';
+        get().game!.phase = 'end';
         endRound(get, set, pid, true);
         return;
       }
     }
 
     if (get().game!.phase === 'discard') {
-      const player = game.players[pid];
+      const player = get().game!.players[pid];
       if (player.hand.length > 0) {
         const discardIdx = player.hand.length - 1;
-        discardTile(game, player.hand[discardIdx].id);
+        discardTile(get().game!, player.hand[discardIdx].id);
       }
-      set({ game: { ...game }, phase: game.phase, currentTurn: game.currentTurn });
+      set({ game: { ...get().game! }, phase: get().game!.phase, currentTurn: get().game!.currentTurn });
 
       // After discard, phase is now 'claim' (set by discardTile)
-      const curPhase = game.phase as Phase;
+      const curPhase = get().game!.phase as Phase;
       if (curPhase === 'claim') {
         const signal = processClaimPhaseFromAi(get(), set, get);
         if (signal === 'stop') return;
@@ -478,12 +478,12 @@ function _processAiTurnSync(state: GameStoreState, set: SetFn, get: GetFn): void
 
   // If player's draw phase
   if (get().game!.currentTurn === 0 && get().game!.phase === 'draw') {
-    const drawn = drawTile(game);
+    const drawn = drawTile(get().game!);
     if (!drawn) {
       endRound(get, set, null, false);
       return;
     }
-    const p = game.players[0];
+    const p = get().game!.players[0];
     if (checkWin(p)) {
       set({
         game: { ...get().game! },
