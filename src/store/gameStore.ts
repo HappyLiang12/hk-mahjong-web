@@ -744,9 +744,22 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
   // P4: Request hint
   requestHintAction: () => {
     const state = get();
+    // P7: debug logging
+    const { game: g, hintState: hs } = state;
+    console.debug('[Hint] requestHintAction called', {
+      phase: g?.phase,
+      currentTurn: g?.currentTurn,
+      hintsRemaining: hs ? (hs.isUnlimited ? 'unlimited' : hs.maxHintsPerGame - hs.hintsUsedThisGame) : 'null',
+    });
     const { game, hintState } = state;
-    if (!game || !hintState) return;
-    if (game.currentTurn !== 0 || game.phase !== 'discard') return;
+    if (!game || !hintState) {
+      console.debug('[Hint] requestHintAction: no game or no hintState');
+      return;
+    }
+    if (game.currentTurn !== 0 || game.phase !== 'discard') {
+      console.debug('[Hint] requestHintAction: not human discard phase', { currentTurn: game.currentTurn, phase: game.phase });
+      return;
+    }
 
     const player = game.players[0];
     const discards = game.players.flatMap(p => p.discards);
