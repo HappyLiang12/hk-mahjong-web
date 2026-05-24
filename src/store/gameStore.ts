@@ -352,6 +352,13 @@ function processClaimPhaseFromAi(curState: GameStoreState, set: SetFn, get: GetF
     const filtered = playerOptions.filter(o => getOptionPriority(o) >= bestAiPriority);
     if (filtered.length > 0) {
       set({ claimOptions: filtered });
+      setTimeout(() => {
+        const currentState = useGameStore.getState();
+        if (currentState.claimOptions.length > 0) {
+          advanceTurn(game);
+          set({ game: { ...game }, phase: game.phase, currentTurn: game.currentTurn, claimOptions: [] });
+        }
+      }, 5000);
       return 'stop';
     }
   }
@@ -426,7 +433,7 @@ function _processAiTurnSync(state: GameStoreState, set: SetFn, get: GetFn): void
     return;
   }
 
-  while (game.currentTurn !== 0 && game.phase !== 'end') {
+  while (game.currentTurn !== 0 && game.phase !== 'end' && game.phase !== 'claim') {
     if (++safetyCounter > MAX_ITERATIONS) {
       console.error('processAiTurnSync: safety limit reached');
       endRound(get, set, null, false);

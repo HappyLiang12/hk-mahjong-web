@@ -30,7 +30,7 @@ export function useGameLoop() {
   useEffect(() => {
     if (!game || phase === 'end') return;
 
-    if (currentTurn !== 0) {
+    if (currentTurn !== 0 && phase !== 'claim') {
       // AI turn — schedule after delay
       scheduleAiTurn();
     }
