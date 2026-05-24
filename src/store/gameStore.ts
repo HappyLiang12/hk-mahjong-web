@@ -440,9 +440,9 @@ function _processAiTurnSync(state: GameStoreState, set: SetFn, get: GetFn): void
       return;
     }
 
-    const pid = game.currentTurn;
+    const pid = get().game!.currentTurn;
 
-    if (game.phase === 'draw') {
+    if (get().game!.phase === 'draw') {
       const drawn = drawTile(game);
       if (!drawn) {
         endRound(get, set, null, false);
@@ -456,7 +456,7 @@ function _processAiTurnSync(state: GameStoreState, set: SetFn, get: GetFn): void
       }
     }
 
-    if (game.phase === 'discard') {
+    if (get().game!.phase === 'discard') {
       const player = game.players[pid];
       if (player.hand.length > 0) {
         const discardIdx = player.hand.length - 1;
