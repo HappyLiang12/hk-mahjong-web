@@ -24,7 +24,7 @@ export default function RoundInfoBar({
         </div>
         <div className="w-px h-5 bg-white/20" />
         <span className="text-sm text-gray-300">
-          {wind}{round + 1}局
+          {wind}{round}局
         </span>
         <div className="w-px h-5 bg-white/20" />
         <span className="text-sm text-gray-400">

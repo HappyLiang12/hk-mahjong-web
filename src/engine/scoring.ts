@@ -283,7 +283,7 @@ function faanToPayment(faan: number, selfDrawn: boolean): number {
   else base = 1024;
 
   // Self-drawn: all 3 pay base. Discard: discarder pays base * 3 (simplified)
-  return selfDrawn ? base * 3 : base * 3;
+  return selfDrawn ? base * 3 : base;
 }
 
 /**
