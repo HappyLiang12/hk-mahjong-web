@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import i18n from '../i18n';
 
 export type AiDifficulty = 'easy' | 'normal' | 'hard';
 export type GameSpeed = 'slow' | 'normal' | 'fast';
@@ -53,7 +54,12 @@ export const useSettingsStore = create<SettingsStoreState>()(
     (set) => ({
       ...DEFAULTS,
 
-      updateSetting: (key, value) => set({ [key]: value }),
+      updateSetting: <K extends keyof SettingsData>(key: K, value: SettingsData[K]) => {
+        set({ [key]: value });
+        if (key === 'language') {
+          i18n.changeLanguage(value as string);
+        }
+      },
 
       resetDefaults: () => set({ ...DEFAULTS }),
     }),
