@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import Button from '@/components/shared/Button';
 import { useSettingsStore, type AiDifficulty, type GameSpeed, type ThemeName } from '@/store/settingsStore';
 
@@ -63,6 +64,7 @@ function SettingSelect({ label, value, options, onChange }: SettingSelectProps) 
 
 export default function SettingsScreen() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const soundEnabled = useSettingsStore((s) => s.soundEnabled);
   const musicEnabled = useSettingsStore((s) => s.musicEnabled);
@@ -87,102 +89,110 @@ export default function SettingsScreen() {
           size="sm"
           onClick={() => navigate(-1)}
         >
-          ← 返回
+          {t('settings.back')}
         </Button>
-        <h1 className="text-2xl font-bold text-white">設定</h1>
+        <h1 className="text-2xl font-bold text-white">{t('settings.title')}</h1>
         <div className="w-16" />
       </motion.div>
 
-      {/* Settings sections */}
+      {/* Sound section */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
         className="bg-white/5 rounded-xl p-4 border border-white/10 space-y-0"
       >
-        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">音效</h2>
+        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">
+          {t('settings.soundSection')}
+        </h2>
         <SettingToggle
-          label="音效"
-          description="遊戲音效 (碰牌、食糊等)"
+          label={t('settings.sound')}
+          description={t('settings.soundDesc')}
           value={soundEnabled}
           onChange={(v) => updateSetting('soundEnabled', v)}
         />
         <SettingToggle
-          label="背景音樂"
-          description="遊戲背景音樂"
+          label={t('settings.music')}
+          description={t('settings.musicDesc')}
           value={musicEnabled}
           onChange={(v) => updateSetting('musicEnabled', v)}
         />
       </motion.div>
 
+      {/* Gameplay section */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
         className="bg-white/5 rounded-xl p-4 border border-white/10 mt-4"
       >
-        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">遊戲</h2>
+        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">
+          {t('settings.gameSection')}
+        </h2>
         <SettingSelect
-          label="AI 難度"
+          label={t('settings.difficulty')}
           value={aiDifficulty}
           options={[
-            { label: '初級', value: 'easy' },
-            { label: '中級', value: 'normal' },
-            { label: '高級', value: 'hard' },
+            { label: t('settings.easy'), value: 'easy' },
+            { label: t('settings.normal'), value: 'normal' },
+            { label: t('settings.hard'), value: 'hard' },
           ]}
           onChange={(v) => updateSetting('aiDifficulty', v as unknown as AiDifficulty)}
         />
         <SettingSelect
-          label="遊戲速度"
+          label={t('settings.gameSpeed')}
           value={gameSpeed}
           options={[
-            { label: '慢', value: 'slow' },
-            { label: '正常', value: 'normal' },
-            { label: '快', value: 'fast' },
+            { label: t('settings.slow'), value: 'slow' },
+            { label: t('settings.speedNormal'), value: 'normal' },
+            { label: t('settings.fast'), value: 'fast' },
           ]}
           onChange={(v) => updateSetting('gameSpeed', v as unknown as GameSpeed)}
         />
         <SettingToggle
-          label="自動理牌"
-          description="摸牌後自動排序手牌"
+          label={t('settings.autoSort')}
+          description={t('settings.autoSortDesc')}
           value={autoSort}
           onChange={(v) => updateSetting('autoSort', v)}
         />
         <SettingToggle
-          label="提示系統"
-          description="顯示棄牌建議"
+          label={t('settings.hintSystem')}
+          description={t('settings.hintSystemDesc')}
           value={showHints}
           onChange={(v) => updateSetting('showHints', v)}
         />
       </motion.div>
 
+      {/* General section */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
         className="bg-white/5 rounded-xl p-4 border border-white/10 mt-4"
       >
-        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">一般</h2>
+        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">
+          {t('settings.generalSection')}
+        </h2>
         <SettingSelect
-          label="語言"
+          label={t('settings.language')}
           value={language}
           options={[
-            { label: '繁體中文', value: 'zh-TW' },
-            { label: '簡體中文', value: 'zh-CN' },
-            { label: '日本語', value: 'ja' },
-            { label: 'English', value: 'en' },
+            { label: t('settings.langZhTW'), value: 'zh-TW' },
+            { label: t('settings.langZhCN'), value: 'zh-CN' },
+            { label: t('settings.langJa'), value: 'ja' },
+            { label: t('settings.langEn'), value: 'en' },
           ]}
           onChange={(v) => updateSetting('language', v)}
         />
         <SettingSelect
-          label="主題"
+          label={t('settings.theme')}
           value={themeName}
           options={[
-            { label: '經典', value: 'classic' },
-            { label: '深色', value: 'dark' },
-            { label: '茶館', value: 'teahouse' },
-            { label: '花園', value: 'garden' },
-            { label: '夜景', value: 'night' },
+            { label: t('settings.themeClassic'), value: 'classic' },
+            { label: t('settings.themeDark'), value: 'dark' },
+            { label: t('settings.themeTeahouse'), value: 'teahouse' },
+            { label: t('settings.themeGarden'), value: 'garden' },
+            { label: t('settings.themeNight'), value: 'night' },
           ]}
           onChange={(v) => updateSetting('themeName', v as unknown as ThemeName)}
         />
@@ -190,7 +200,7 @@ export default function SettingsScreen() {
 
       {/* Save indicator */}
       <p className="text-xs text-gray-500 text-center mt-4">
-        設定會自動儲存到本機
+        {t('settings.autoSaveNote')}
       </p>
     </div>
   );

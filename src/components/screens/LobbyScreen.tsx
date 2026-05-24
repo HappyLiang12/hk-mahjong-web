@@ -1,52 +1,28 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import Button from '@/components/shared/Button';
 
-const GAME_MODES = [
-  {
-    id: 'standard',
-    name: '標準模式',
-    description: '四人標準遊戲，3 番起糊',
-    icon: '🀄',
-    players: '1人 vs 3AI',
-    details: '東南西北四圈 · 3番起糊 · 有花',
-  },
-  {
-    id: 'casual',
-    name: '休閒模式',
-    description: '輕鬆玩法，1 番起糊',
-    icon: '🎯',
-    players: '1人 vs 3AI',
-    details: '無限圈 · 1番起糊 · 無最低番數',
-  },
-  {
-    id: 'competitive',
-    name: '競技模式',
-    description: '高難度，AI 策略最強',
-    icon: '🏆',
-    players: '1人 vs 3AI',
-    details: '東南西北四圈 · 3番起糊 · AI 高級',
-  },
-  {
-    id: 'practice',
-    name: '練習模式',
-    description: '任意練習特定牌型',
-    icon: '📚',
-    players: '1人 vs 1AI',
-    details: '無限圈 · 0番起糊 · 教學提示',
-  },
-];
+const MODE_IDS = ['standard', 'casual', 'competitive', 'practice'] as const;
 
 const AI_PERSONALITIES = [
-  { id: 'balanced', name: '均衡', icon: '⚖️' },
-  { id: 'aggressive', name: '進取', icon: '🔥' },
-  { id: 'defensive', name: '防守', icon: '🛡️' },
-  { id: 'random', name: '隨機', icon: '🎲' },
+  { id: 'balanced', icon: '⚖️', key: 'lobby.aiBalanced' },
+  { id: 'aggressive', icon: '🔥', key: 'lobby.aiAggressive' },
+  { id: 'defensive', icon: '🛡️', key: 'lobby.aiDefensive' },
+  { id: 'random', icon: '🎲', key: 'lobby.aiRandom' },
+];
+
+const MODE_LIST = [
+  { id: 'standard', icon: '🀄' },
+  { id: 'casual', icon: '🎯' },
+  { id: 'competitive', icon: '🏆' },
+  { id: 'practice', icon: '📚' },
 ];
 
 export default function LobbyScreen() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [selectedMode, setSelectedMode] = useState('standard');
   const [aiPersonality, setAiPersonality] = useState('balanced');
 
@@ -63,9 +39,9 @@ export default function LobbyScreen() {
           size="sm"
           onClick={() => navigate('/')}
         >
-          ← 主選單
+          {t('lobby.back')}
         </Button>
-        <h1 className="text-2xl font-bold text-white">遊戲大廳</h1>
+        <h1 className="text-2xl font-bold text-white">{t('lobby.title')}</h1>
         <div className="w-16" />
       </motion.div>
 
@@ -76,9 +52,9 @@ export default function LobbyScreen() {
         transition={{ delay: 0.1 }}
         className="mb-4"
       >
-        <h2 className="text-sm font-bold text-gray-400 mb-3">遊戲模式</h2>
+        <h2 className="text-sm font-bold text-gray-400 mb-3">{t('lobby.gameMode')}</h2>
         <div className="grid grid-cols-1 gap-2">
-          {GAME_MODES.map((mode) => (
+          {MODE_LIST.map((mode) => (
             <button
               key={mode.id}
               onClick={() => setSelectedMode(mode.id)}
@@ -91,9 +67,15 @@ export default function LobbyScreen() {
               <div className="flex items-center gap-3">
                 <span className="text-2xl">{mode.icon}</span>
                 <div className="flex-1">
-                  <div className="text-sm font-bold text-white">{mode.name}</div>
-                  <div className="text-xs text-gray-400">{mode.description}</div>
-                  <div className="text-xs text-gray-500 mt-0.5">{mode.details}</div>
+                  <div className="text-sm font-bold text-white">
+                    {t(`lobby.${mode.id}`)}
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    {t(`lobby.${mode.id}Desc`)}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-0.5">
+                    {t(`lobby.${mode.id}Details`)}
+                  </div>
                 </div>
                 {selectedMode === mode.id && (
                   <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
@@ -113,7 +95,7 @@ export default function LobbyScreen() {
         transition={{ delay: 0.2 }}
         className="mb-6"
       >
-        <h2 className="text-sm font-bold text-gray-400 mb-3">AI 風格</h2>
+        <h2 className="text-sm font-bold text-gray-400 mb-3">{t('lobby.aiStyle')}</h2>
         <div className="flex gap-2">
           {AI_PERSONALITIES.map((p) => (
             <button
@@ -126,7 +108,7 @@ export default function LobbyScreen() {
               }`}
             >
               <span className="text-lg">{p.icon}</span>
-              <span>{p.name}</span>
+              <span>{t(p.key)}</span>
             </button>
           ))}
         </div>
@@ -146,7 +128,7 @@ export default function LobbyScreen() {
           className="w-full bg-green-700 hover:bg-green-600 text-xl font-bold"
           leftIcon={<span>🀄</span>}
         >
-          開始遊戲
+          {t('lobby.startGame')}
         </Button>
       </motion.div>
     </div>

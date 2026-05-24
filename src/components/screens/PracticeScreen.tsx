@@ -1,64 +1,28 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import Button from '@/components/shared/Button';
 import { useState } from 'react';
 import { useGameStore } from '@/store/gameStore';
 import type { PracticeScenarioId } from '@/engine';
 
-const PRACTICE_SCENARIOS = [
-  {
-    id: 'standard-hand' as PracticeScenarioId,
-    name: '標準手牌',
-    description: '練習基本牌型組合',
-    icon: '🀄',
-    handDescription: '隨機 13 張牌，練習棄牌策略',
-  },
-  {
-    id: 'one-away' as PracticeScenarioId,
-    name: '聽牌練習',
-    description: '差一張就食糊的牌型',
-    icon: '🎯',
-    handDescription: '已經聽牌 (1-shanten)，練習判斷',
-  },
-  {
-    id: 'mixed-suit' as PracticeScenarioId,
-    name: '混一色練習',
-    description: '練習混一色牌型',
-    icon: '🎨',
-    handDescription: '已有混合花色，目標混一色',
-  },
-  {
-    id: 'all-pong' as PracticeScenarioId,
-    name: '對對糊練習',
-    description: '練習對對糊牌型',
-    icon: '🔨',
-    handDescription: '多對子手牌，目標對對糊',
-  },
-  {
-    id: 'defense' as PracticeScenarioId,
-    name: '防守練習',
-    description: '練習防守策略',
-    icon: '🛡️',
-    handDescription: '落後時的打法，避免出銃',
-  },
-  {
-    id: 'fast-game' as PracticeScenarioId,
-    name: '快速決策',
-    description: '限時遊戲，練習快速判斷',
-    icon: '⚡',
-    handDescription: '每回合限時 10 秒',
-  },
-];
+const SCENARIO_LIST = [
+  { id: 'standard-hand', icon: '🀄', key: 'standardHand' },
+  { id: 'one-away', icon: '🎯', key: 'oneAway' },
+  { id: 'mixed-suit', icon: '🎨', key: 'mixedSuit' },
+  { id: 'all-pong', icon: '🔨', key: 'allPongs' },
+  { id: 'defense', icon: '🛡️', key: 'defense' },
+  { id: 'fast-game', icon: '⚡', key: 'fastGame' },
+] as const;
 
 export default function PracticeScreen() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [selectedScenario, setSelectedScenario] = useState<PracticeScenarioId | null>(null);
 
   const handleStart = () => {
     if (!selectedScenario) return;
-    // P1: Set game mode to practice
     useGameStore.getState().setGameMode('practice');
-    // Practice hands: Set scenario for curated hand
     useGameStore.getState().setPracticeScenario(selectedScenario);
     navigate('/game');
   };
@@ -76,9 +40,9 @@ export default function PracticeScreen() {
           size="sm"
           onClick={() => navigate(-1)}
         >
-          ← 返回
+          {t('practice.back')}
         </Button>
-        <h1 className="text-2xl font-bold text-white">練習模式</h1>
+        <h1 className="text-2xl font-bold text-white">{t('practice.title')}</h1>
         <div className="w-16" />
       </motion.div>
 
@@ -89,7 +53,7 @@ export default function PracticeScreen() {
         transition={{ delay: 0.1 }}
         className="text-sm text-gray-400 mb-4"
       >
-        選擇一個場景進行針對性練習。AI 難度較低，無時間壓力。
+        {t('practice.selectScenario')}
       </motion.p>
 
       {/* Scenarios */}
@@ -99,13 +63,13 @@ export default function PracticeScreen() {
         transition={{ delay: 0.2 }}
         className="space-y-2"
       >
-        {PRACTICE_SCENARIOS.map((scenario, i) => (
+        {SCENARIO_LIST.map((scenario, i) => (
           <motion.button
             key={scenario.id}
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.25 + i * 0.04 }}
-            onClick={() => setSelectedScenario(scenario.id)}
+            onClick={() => setSelectedScenario(scenario.id as PracticeScenarioId)}
             className={`w-full text-left p-4 rounded-xl border transition-all ${
               selectedScenario === scenario.id
                 ? 'bg-teal-700/30 border-teal-500 shadow-lg shadow-teal-500/10'
@@ -115,9 +79,15 @@ export default function PracticeScreen() {
             <div className="flex items-center gap-3">
               <span className="text-2xl">{scenario.icon}</span>
               <div className="flex-1">
-                <div className="text-sm font-bold text-white">{scenario.name}</div>
-                <div className="text-xs text-gray-400">{scenario.description}</div>
-                <div className="text-xs text-gray-500 mt-1 italic">{scenario.handDescription}</div>
+                <div className="text-sm font-bold text-white">
+                  {t(`practice.${scenario.key}`)}
+                </div>
+                <div className="text-xs text-gray-400">
+                  {t(`practice.${scenario.key}Desc`)}
+                </div>
+                <div className="text-xs text-gray-500 mt-1 italic">
+                  {t(`practice.${scenario.key}Details`)}
+                </div>
               </div>
               {selectedScenario === scenario.id && (
                 <span className="text-teal-400 text-lg">▶</span>
@@ -139,7 +109,7 @@ export default function PracticeScreen() {
           disabled={!selectedScenario}
           className="w-full py-4 bg-teal-600 hover:bg-teal-500 disabled:bg-teal-800 disabled:opacity-50 text-white text-lg font-bold rounded-xl shadow-lg transition-all"
         >
-          {selectedScenario ? '🏋️ 開始練習' : '請選擇練習場景'}
+          {selectedScenario ? t('practice.startPractice') : t('practice.selectFirst')}
         </button>
       </motion.div>
     </div>
