@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface TurnTimerProps {
   seconds: number; // total seconds allowed per turn
@@ -12,6 +12,12 @@ export default function TurnTimer({
   onTimeout,
 }: TurnTimerProps) {
   const [remaining, setRemaining] = useState(seconds);
+  const onTimeoutRef = useRef(onTimeout);
+
+  // Keep ref in sync with latest onTimeout prop — avoids React 18 stale closure
+  useEffect(() => {
+    onTimeoutRef.current = onTimeout;
+  });
 
   useEffect(() => {
     setRemaining(seconds);
@@ -24,7 +30,7 @@ export default function TurnTimer({
       setRemaining((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          onTimeout?.();
+          onTimeoutRef.current?.();
           return 0;
         }
         return prev - 1;
@@ -32,7 +38,7 @@ export default function TurnTimer({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [running, onTimeout]);
+  }, [running]);
 
   if (!running) return null;
 
