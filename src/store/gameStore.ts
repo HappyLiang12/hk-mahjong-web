@@ -79,6 +79,9 @@ export interface GameStoreState {
   // Practice hands
   practiceScenario: PracticeScenarioId | null;
 
+  // FSM
+  aiFsm: AiFsmState;
+
   newGame: () => void;
   selectTile: (tileId: number) => void;
   confirmDiscard: () => void;
@@ -93,6 +96,8 @@ export interface GameStoreState {
   setGameMode: (mode: GameMode) => void;
   setPracticeScenario: (scenario: PracticeScenarioId | null) => void;
   requestHintAction: () => void;
+  handleAiTimeout: () => void;
+  cancelAiFsm: () => void;
 }
 
 // ── ReplayRecorder factory ──
@@ -119,6 +124,14 @@ function createFullReplayRecorder(): ReplayRecorder {
 
 type SetFn = (partial: Partial<GameStoreState>) => void;
 type GetFn = () => GameStoreState;
+
+type AiStep = 'IDLE' | 'THINKING' | 'DRAW' | 'DISCARD' | 'CLAIM_CHECK' | 'NEXT_PLAYER' | 'DONE';
+
+interface AiFsmState {
+  aiStep: AiStep;
+  aiStepCount: number;
+  aiStartTime: number;
+}
 
 // ── Claim priority helpers ──
 
@@ -286,7 +299,7 @@ function processClaimPhase(prevState: GameStoreState, set: SetFn, get: GetFn): v
 
   if (game.lastDiscardBy === 0) {
     const signal = resolveAiClaims(prevState, set);
-    if (signal === 'continue') processAiTurnSync(get(), set, get);
+    if (signal === 'continue') startAiTurn(get, set);
     return;
   }
 
@@ -317,11 +330,11 @@ function processClaimPhase(prevState: GameStoreState, set: SetFn, get: GetFn): v
       set({ game: { ...game }, phase: game.phase });
       if (!success) {
         advanceTurn(game);
-        processAiTurnSync(get(), set, get);
+        startAiTurn(get, set);
         return;
       }
       if (game.currentTurn !== 0) {
-        processAiTurnSync(get(), set, get);
+        startAiTurn(get, set);
       }
       return;
     }
@@ -330,171 +343,167 @@ function processClaimPhase(prevState: GameStoreState, set: SetFn, get: GetFn): v
   // No claims
   advanceTurn(game);
   set({ game: { ...game }, phase: game.phase, currentTurn: game.currentTurn });
-  processAiTurnSync(get(), set, get);
+  startAiTurn(get, set);
 }
 
-// ── AI turn processing ──
+// ── AI FSM tick ──
 
-function processClaimPhaseFromAi(curState: GameStoreState, set: SetFn, get: GetFn): 'continue' | 'stop' {
-  const { game, aiDifficulty } = curState;
-  if (!game || game.phase !== 'claim') return 'stop';
+function tickAiFsm(get: GetFn, set: SetFn): void {
+  const state = get();
+  const { game, aiFsm: fsm } = state;
 
-  if (game.lastDiscardBy === 0) {
-    return resolveAiClaims(curState, set);
+  if (!game || game.phase === 'end') {
+    set({ aiFsm: { ...fsm, aiStep: 'DONE' } });
+    return;
   }
 
-  const playerOptions = getPlayerClaimOptions(game);
-  const aiClaims = collectAiClaims(game, aiDifficulty);
-  const bestAiPriority = getMaxClaimPriority(aiClaims);
-  const bestPlayerPriority = getMaxOptionPriority(playerOptions);
+  if (fsm.aiStepCount > 100) {
+    console.error('tickAiFsm: step limit exceeded');
+    set({ aiFsm: { ...fsm, aiStep: 'DONE' } });
+    return;
+  }
 
-  if (bestPlayerPriority >= bestAiPriority && playerOptions.length > 0) {
-    const filtered = playerOptions.filter(o => getOptionPriority(o) >= bestAiPriority);
-    if (filtered.length > 0) {
-      set({ claimOptions: filtered });
+  if (Date.now() - fsm.aiStartTime > 30000) {
+    console.error('tickAiFsm: timeout after', Date.now() - fsm.aiStartTime, 'ms');
+    set({ aiFsm: { ...fsm, aiStep: 'DONE' } });
+    return;
+  }
+
+  switch (fsm.aiStep) {
+    case 'THINKING': {
+      const delay = state.aiDelay;
       setTimeout(() => {
-        const currentState = useGameStore.getState();
-        if (currentState.claimOptions.length > 0) {
-          advanceTurn(game);
-          set({ game: { ...game }, phase: game.phase, currentTurn: game.currentTurn, claimOptions: [] });
+        const s = get();
+        if (s.aiFsm.aiStep !== 'THINKING') return;
+        set({ aiFsm: { aiStep: 'DRAW', aiStepCount: s.aiFsm.aiStepCount + 1, aiStartTime: s.aiFsm.aiStartTime } });
+        tickAiFsm(get, set);
+      }, delay);
+      break;
+    }
+
+    case 'DRAW': {
+      if (game.currentTurn === 0) {
+        set({ aiFsm: { ...fsm, aiStep: 'DONE' } });
+        return;
+      }
+      if (game.phase === 'draw') {
+        const g = get().game!;
+        const drawn = drawTile(g);
+        if (!drawn) {
+          endRound(get, set, null, false);
+          set({ aiFsm: { ...get().aiFsm, aiStep: 'DONE' } });
+          return;
         }
-      }, 5000);
-      return 'stop';
-    }
-  }
-
-  if (aiClaims.length > 0) {
-    const best = resolveBestClaim(aiClaims, game.lastDiscardBy!);
-    if (best) {
-      if (best.type === 'win') {
-        executeClaim(game, best);
-        set({ game: { ...game }, phase: game.phase });
-        endRound(get, set, best.playerId, false);
-        return 'stop';
+        const pid = g.currentTurn;
+        const p = g.players[pid];
+        if (checkWin(p)) {
+          g.phase = 'end';
+          endRound(get, set, pid, true);
+          set({ aiFsm: { ...get().aiFsm, aiStep: 'DONE' } });
+          return;
+        }
       }
-      executeClaim(game, best);
-      set({ game: { ...game }, phase: game.phase, currentTurn: game.currentTurn });
-      if (game.currentTurn !== 0) return 'continue';
-      return 'stop';
-    }
-  }
-
-  advanceTurn(game);
-  set({ game: { ...game }, phase: game.phase, currentTurn: game.currentTurn });
-  return 'continue';
-}
-
-// ── AI recursion depth guard (P1) ──
-
-let aiRecursionDepth = 0;
-const AI_MAX_RECURSION_DEPTH = 50;
-
-function processAiTurnSync(state: GameStoreState, set: SetFn, get: GetFn): void {
-  aiRecursionDepth++;
-  try {
-    _processAiTurnSync(state, set, get);
-  } finally {
-    aiRecursionDepth--;
-  }
-}
-
-function _processAiTurnSync(state: GameStoreState, set: SetFn, get: GetFn): void {
-  const { game, aiDelay } = state;
-  if (!game) return;
-
-  // P1: Recursion depth safety guard
-  if (aiRecursionDepth > AI_MAX_RECURSION_DEPTH) {
-    console.error('processAiTurnSync: recursion depth limit reached (', aiRecursionDepth, ')');
-    endRound(get, set, null, false);
-    return;
-  }
-
-  const MAX_ITERATIONS = 200;
-  let safetyCounter = 0;
-
-  // If player's draw phase, draw for them
-  if (game.currentTurn === 0 && game.phase === 'draw') {
-    const drawn = drawTile(get().game!);
-    if (!drawn) {
-      endRound(get, set, null, false);
-      return;
-    }
-    const p = get().game!.players[0];
-    if (checkWin(p)) {
-      set({
-        game: { ...game },
-        phase: game.phase,
-        currentTurn: game.currentTurn,
-        claimOptions: [{ type: 'win' }, { type: 'pass' as any }],
-      });
-      return;
-    }
-    set({ game: { ...game }, phase: game.phase, currentTurn: game.currentTurn });
-    return;
-  }
-
-  while (get().game!.currentTurn !== 0 && get().game!.phase !== 'end' && get().game!.phase !== 'claim') {
-    if (++safetyCounter > MAX_ITERATIONS) {
-      console.error('processAiTurnSync: safety limit reached');
-      endRound(get, set, null, false);
-      return;
+      set({ aiFsm: { aiStep: 'DISCARD', aiStepCount: fsm.aiStepCount + 1, aiStartTime: fsm.aiStartTime } });
+      setTimeout(() => tickAiFsm(get, set), 0);
+      break;
     }
 
-    const pid = get().game!.currentTurn;
-
-    if (get().game!.phase === 'draw') {
-      const drawn = drawTile(get().game!);
-      if (!drawn) {
-        endRound(get, set, null, false);
+    case 'DISCARD': {
+      const g = get().game!;
+      if (g.currentTurn === 0 || g.phase !== 'discard') {
+        set({ aiFsm: { ...fsm, aiStep: 'DONE' } });
         return;
       }
-      const p = get().game!.players[pid];
-      if (checkWin(p)) {
-        get().game!.phase = 'end';
-        endRound(get, set, pid, true);
-        return;
-      }
-    }
-
-    if (get().game!.phase === 'discard') {
-      const player = get().game!.players[pid];
+      const pid = g.currentTurn;
+      const player = g.players[pid];
       if (player.hand.length > 0) {
         const discardIdx = player.hand.length - 1;
-        discardTile(get().game!, player.hand[discardIdx].id);
+        discardTile(g, player.hand[discardIdx].id);
       }
-      set({ game: { ...get().game! }, phase: get().game!.phase, currentTurn: get().game!.currentTurn });
-
-      // After discard, phase is now 'claim' (set by discardTile)
-      const curPhase = get().game!.phase as Phase;
-      if (curPhase === 'claim') {
-        const signal = processClaimPhaseFromAi(get(), set, get);
-        if (signal === 'stop') return;
-        continue;
-      }
+      set({ game: { ...g }, phase: g.phase, currentTurn: g.currentTurn });
+      set({ aiFsm: { aiStep: 'CLAIM_CHECK', aiStepCount: fsm.aiStepCount + 1, aiStartTime: fsm.aiStartTime } });
+      setTimeout(() => tickAiFsm(get, set), 0);
+      break;
     }
+
+    case 'CLAIM_CHECK': {
+      const g = get().game!;
+      if (g.phase === 'claim') {
+        const signal = resolveAiClaims(get(), set);
+        const fresh = get().game!;
+        set({ game: { ...fresh }, phase: fresh.phase, currentTurn: fresh.currentTurn });
+        if (signal === 'stop') {
+          if (fresh.phase === 'end') {
+            endRound(get, set, fresh.currentTurn, false);
+          }
+          set({ aiFsm: { ...get().aiFsm, aiStep: 'DONE' } });
+          return;
+        }
+      }
+      set({ aiFsm: { aiStep: 'NEXT_PLAYER', aiStepCount: fsm.aiStepCount + 1, aiStartTime: fsm.aiStartTime } });
+      setTimeout(() => tickAiFsm(get, set), 0);
+      break;
+    }
+
+    case 'NEXT_PLAYER': {
+      const s = get();
+      if (!s.game || s.game.phase === 'end') {
+        set({ aiFsm: { ...s.aiFsm, aiStep: 'DONE' } });
+        return;
+      }
+      if (s.game.currentTurn === 0 && s.game.phase === 'draw') {
+        set({ aiFsm: { ...s.aiFsm, aiStep: 'DONE' } });
+        return;
+      }
+      if (s.game.currentTurn !== 0) {
+        set({ aiFsm: { aiStep: 'THINKING', aiStepCount: s.aiFsm.aiStepCount + 1, aiStartTime: s.aiFsm.aiStartTime } });
+        setTimeout(() => tickAiFsm(get, set), 0);
+        return;
+      }
+      set({ aiFsm: { ...s.aiFsm, aiStep: 'DONE' } });
+      break;
+    }
+
+    case 'DONE':
+    default:
+      break;
   }
+}
 
-  set({ game: { ...get().game! }, phase: get().game!.phase, currentTurn: get().game!.currentTurn });
+// ── AI turn entry point ──
 
-  // If player's draw phase
-  if (get().game!.currentTurn === 0 && get().game!.phase === 'draw') {
-    const drawn = drawTile(get().game!);
+function startAiTurn(get: GetFn, set: SetFn): void {
+  const state = get();
+  const { game } = state;
+
+  if (!game || game.phase === 'end') return;
+
+  // Human draw phase
+  if (game.currentTurn === 0 && game.phase === 'draw') {
+    const g = get().game!;
+    const drawn = drawTile(g);
     if (!drawn) {
       endRound(get, set, null, false);
       return;
     }
-    const p = get().game!.players[0];
+    const p = g.players[0];
     if (checkWin(p)) {
       set({
-        game: { ...get().game! },
-        phase: get().game!.phase,
-        currentTurn: get().game!.currentTurn,
+        game: { ...g },
+        phase: g.phase,
+        currentTurn: g.currentTurn,
         claimOptions: [{ type: 'win' }, { type: 'pass' as any }],
       });
       return;
     }
-    set({ game: { ...get().game! }, phase: get().game!.phase, currentTurn: get().game!.currentTurn });
+    set({ game: { ...g }, phase: g.phase, currentTurn: g.currentTurn });
+    return;
   }
+
+  if (game.currentTurn === 0) return;
+
+  set({ aiFsm: { aiStep: 'THINKING', aiStepCount: 0, aiStartTime: Date.now() } });
+  Promise.resolve().then(() => tickAiFsm(get, set));
 }
 
 // ── Store ──
@@ -532,6 +541,9 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
 
   // Practice hands
   practiceScenario: null,
+
+  // FSM
+  aiFsm: { aiStep: 'IDLE', aiStepCount: 0, aiStartTime: 0 },
 
   newGame: () => {
     const st = get();
@@ -603,6 +615,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       lastHintResult: null,
       highlightedHintTileId: null,
       hintToastText: null,
+      aiFsm: { aiStep: 'IDLE', aiStepCount: 0, aiStartTime: 0 },
     });
   },
 
@@ -694,7 +707,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     if (!success) {
       const s = get();
       const sig = resolveAiClaims(s, set);
-      if (sig === 'continue') processAiTurnSync(s, set, get);
+      if (sig === 'continue') startAiTurn(get, set);
       return;
     }
   },
@@ -706,12 +719,19 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
 
     const state = get();
     const signal = resolveAiClaims(state, set);
-    if (signal === 'continue') processAiTurnSync(state, set, get);
+    if (signal === 'continue') startAiTurn(get, set);
   },
 
   runAITurn: () => {
-    const state = get();
-    processAiTurnSync(state, set, get);
+    startAiTurn(get, set);
+  },
+
+  handleAiTimeout: () => {
+    Promise.resolve().then(() => startAiTurn(get, set));
+  },
+
+  cancelAiFsm: () => {
+    set({ aiFsm: { aiStep: 'IDLE', aiStepCount: 0, aiStartTime: 0 } });
   },
 
   resolveWin: () => {
